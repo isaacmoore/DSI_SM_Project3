@@ -1,0 +1,152 @@
+---
+title: "General Assembly DSI Project 3 in R"
+output: html_notebook
+author: Isaac Moore
+---
+```{r}
+setwd("~/Google Drive/data_science/general_assembly/Projects/DSI_SM_Project3")
+```
+Loading packages
+```{r}
+library(tidyverse)
+library(lubridate)
+library(reshape2)
+```
+```{r}
+# Load the data into a DataFrame
+raw_data <- read_csv("Iowa_Liquor_sales_sample_10pct.csv")
+```
+```{r}
+# Create a copy of the data
+df <- raw_data
+glimpse(df)
+```
+
+### Explore the data
+Perform some exploratory statistical analysis and make some plots, such as histograms of transaction totals, bottles sold, etc.
+```{r}
+cols <- colnames(df)
+cols <- tolower(gsub(" ", "_", cols))
+cols <- gsub("\\(","", cols)
+colnames(df) <- gsub(")","", cols)
+colnames(df)
+```
+
+```{r}
+df <- df %>% select(-c(county_number, item_number))
+colnames(df)
+```
+```{r}
+# Convert dates
+df$date <-  mdy(df$date)
+class(df$date)
+```
+```{r}
+# Remove $ from items in columns
+df$state_bottle_cost <- as.double(gsub("\\$", "", df$state_bottle_cost))
+
+df$state_bottle_retail <- as.double(gsub("\\$", "", df$state_bottle_retail))
+
+df$sale_dollars <- as.double(gsub("\\$", "", df$sale_dollars))
+```
+
+```{r}
+glimpse(df)
+```
+```{r}
+summary(df)
+```
+Category contains 68 NA's 
+```{r}
+boxplot(df$bottles_sold)
+hist(df$bottles_sold)
+```
+
+```{r}
+ggplot(df, aes(date, bottles_sold)) + geom_line()
+```
+
+```{r}
+df_numeric <- df %>% select(c(sale_dollars, store_number, vendor_number, bottle_volume_ml, bottles_sold, volume_sold_liters, volume_sold_gallons))
+# library(d3heatmap)
+# d3heatmap(df_numeric, scale = "column")
+cormat <- round(cor(df_numeric),2)
+melted_cormat <- melt(cormat)
+ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()
+```
+d3heatmap takes too long to generate a heatmap. Using ggplot takes a lot less time.
+
+### Mine the data
+Now you are ready to compute the variables you will use for your regression from the data. For example, you may want to compute total sales per store from Jan to March of 2015, mean price per bottle, etc. Refer to the readme for more ideas appropriate to your scenario.
+
+```{r}
+# total sales per store from Jan to March of 2015
+a <- df %>% filter(date >= "2015-1-1" & date <= "2015-3-31") %>% group_by(store_number) %>% summarise(total_sales = sum(sale_dollars)) %>% arrange(desc(total_sales))
+a
+```
+```{r}
+ggplot(a, aes(store_number, total_sales)) +
+               geom_bar(stat = "identity")
+```
+
+```{r}
+# mean price per bottle
+mean(df$state_bottle_cost)
+mean(df$state_bottle_retail)
+```
+
+```{r}
+b <- df %>% filter(date >= "2015-1-1" & date <= "2015-3-31") %>% group_by(county) %>% summarise(total_sales = sum(sale_dollars)) %>% arrange(desc(total_sales))
+b
+```
+
+```{r}
+ggplot(head(b, n = 10), aes(county, total_sales)) + 
+        geom_bar(stat = "identity") + 
+        labs(title = "Top 10 selling counties for dates \n 1/1/2015 - 3/31/2015", x = "County", y = "Total Sales")
+```
+
+```{r}
+# Total sales in 2015 per store
+sales_2015 <- df %>% filter(date >= "2015-1-1" & date <= "2015-12-31") %>% 
+        group_by(store_number) %>%
+                summarise(total_sales = sum(sale_dollars))
+head(sales_2015)
+```
+
+```{r}
+# Total sales in 2016 per store
+sales_2016 <- df %>% filter(date >= "2016-1-1" & date <= "2016-12-31") %>% 
+        group_by(store_number) %>%
+                summarise(total_sales = sum(sale_dollars))
+head(sales_2016)
+```
+
+```{r}
+sales_1516 <- left_join(sales_2015, sales_2016, by = "store_number")
+colnames(sales_1516) <- c("store_number", "total_15", "total_16")
+sales_1516$total <- sales_1516$total_15 + sales_1516$total_16
+arrange(sales_1516, desc(total))
+```
+
+### Build your models
+Using scikit-learn or statsmodels, build the necessary models for your scenario. Evaluate model fit.
+Use the data from 2015 to make a linear model using as many variables as you find useful to predict the yearly sales of each store. You must use the sales from Jan to March per store as one of your variables.
+
+```{r}
+set.seed(1987)
+index <- sample(1:nrow(df), size=0.2*nrow(df))
+test <-  df[index, ]
+train = df[-index, ]
+
+model <- lm(sale_dollars ~ ., data = df_numeric)
+
+print(model)
+
+```
+
+```{r}
+summary(model)
+```
+
