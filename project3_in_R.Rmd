@@ -8,7 +8,9 @@ setwd("~/Google Drive/data_science/general_assembly/Projects/DSI_SM_Project3")
 ```
 Loading packages
 ```{r}
-library(tidyverse)
+library("tidyverse", lib.loc="/Library/Frameworks/R.framework/Versions/3.3/Resources/library")
+library(caret)
+library(readr)
 library(lubridate)
 library(reshape2)
 ```
@@ -75,6 +77,11 @@ melted_cormat <- melt(cormat)
 ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
   geom_tile()
 ```
+```{r}
+
+```
+
+
 d3heatmap takes too long to generate a heatmap. Using ggplot takes a lot less time.
 
 ### Mine the data
@@ -131,16 +138,22 @@ arrange(sales_1516, desc(total))
 ```
 
 ### Build your models
-Using scikit-learn or statsmodels, build the necessary models for your scenario. Evaluate model fit.
+Using scikit-learn or statsmodels, build the necessary models for your scenario. Evaluate model fit.  
+*I'll be using the base lm (Linear model) function and the Caret package to make my predictions*  
 Use the data from 2015 to make a linear model using as many variables as you find useful to predict the yearly sales of each store. You must use the sales from Jan to March per store as one of your variables.
 
 ```{r}
+# Set a seed for reproducibily
 set.seed(1987)
-index <- sample(1:nrow(df), size=0.2*nrow(df))
-test <-  df[index, ]
-train = df[-index, ]
 
-model <- lm(sale_dollars ~ ., data = df_numeric)
+# Make a train/test split
+index <- sample(1:nrow(df_numeric), size=0.2*nrow(df))
+test <-  df_numeric[index, ]
+train = df_numeric[-index, ]
+
+# Create a model
+model <- lm(sale_dollars ~ ., data = train)
+
 
 print(model)
 
@@ -148,5 +161,31 @@ print(model)
 
 ```{r}
 summary(model)
+```
+```{r}
+# Make Predictions
+p <- predict(model, test)
+```
+
+
+```{r}
+# Calculate the error in the model
+error <- p - test$sale_dollars
+
+# RMSE (Root Mean Squared Error) - The average amount of error we can expect when making predictions on sale_dollars
+sqrt(mean(error^2))
+```
+
+```{r}
+library(caret)
+model <- train(
+  sale_dollars ~ ., df_numeric,
+  method = "lm",
+  trControl = trainControl(
+    method = "cv", number = 5,
+    verboseIter = TRUE
+  )
+)
+model
 ```
 
